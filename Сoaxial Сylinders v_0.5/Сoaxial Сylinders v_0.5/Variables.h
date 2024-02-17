@@ -44,8 +44,14 @@ double** u;
 /* Массивы давления на текущем шаге */
 double** P;
 
-/* Массивы давления на предыдцщем шаге */
+/* Массивы давления на предыдущем шаге */
 double** p;
+
+/* Массивы вязкости на текущем шаге*/
+double** VISC;
+
+/* Массивы вязкости на предыдущем шаге*/
+double** visc;
 
 /* Массивы поправки давления на текущем шаге */
 double** PP;
@@ -97,3 +103,4 @@ double tt;
 /* Топологический признак */
 int** sign;
 enum Topological_Attribute { Inner_Wall, Outer_Wall, Gluing_Region, Computational_Cell };
+
