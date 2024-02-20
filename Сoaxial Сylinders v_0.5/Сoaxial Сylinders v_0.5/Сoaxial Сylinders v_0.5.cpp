@@ -438,10 +438,10 @@ void Calculation_Velocity_Vr()
 			double drp, drn, drs, dre, drw;
 			double depsp, depsn, depss, depse, depsw;
 
-			double visc_s, visc_n, visc_w, visc_e;
+			double visc_s, visc_n, visc_w, visc_e, visc_p;
 
 			double Vp, Vn, Vs;
-			double Up, Ue, Uw;
+			double Up, Ue, Uw, Un, Us;
 
 			double VN, VS, VE, VW;
 
@@ -461,6 +461,7 @@ void Calculation_Velocity_Vr()
 					visc_n = visc[i + 1][j];
 					visc_e = 0.5 * (0.5 * (visc[i][j] + visc[i + 1][j]) + 0.5 * (visc[i][j + 1] + visc[i + 1][j + 1]));
 					visc_w = 0.5 * (0.5 * (visc[i][j] + visc[i + 1][j]) + 0.5 * (visc[i][j - 1] + visc[i + 1][j - 1]));
+					visc_p = 0.5 * (visc_s + visc_n);
 
 					drp = 0.5 * (dr[i] + dr[i + 1]);
 					drn = dr[i + 1];
@@ -485,6 +486,8 @@ void Calculation_Velocity_Vr()
 
 					Ue = U[i][j] + 0.5 * dr[i] * (U[i + 1][j] - U[i][j]) / dre;
 					Uw = U[i][j - 1] + 0.5 * dr[i] * (U[i + 1][j - 1] - U[i][j - 1]) / drw;
+					Un = 0.5 * (U[i + 1][j] + U[i + 1][j - 1]);
+					Us = 0.5 * (U[i][j] + U[i][j - 1]);
 					Up = 0.5 * (Ue + Uw);
 				}
 
@@ -504,8 +507,11 @@ void Calculation_Velocity_Vr()
 				R = Re * drw * Uw;
 				double aw_r = fmax(+R, 0.0) + visc_w*drw / (rw * depsw);
 
+				/* ************* */
+				double S1 = rp * depsp * (visc_n - visc_n) * (Vn - Vs) / drp + (visc_e - visc_w) * (Un - Us) - Up * drp * (visc_e / re - visc_w / rw) / rp;
+
 				/* ************ */
-				double S = Re * pow(Up, 2) * drp * depsp - 2.0 * drp / rp * (Ue - Uw) - Vp * drp * depsp / rp + v[i][j] * Re * rp * drp * depsp / dt;
+				double S = Re * pow(Up, 2) * drp * depsp - 2.0 * visc_p * drp / rp * (Ue - Uw) - visc_p * Vp * drp * depsp / rp + v[i][j] * Re * rp * drp * depsp / dt + S1;
 
 				/* ************ */
 				ap_r[i][j] = an_r + as_r + ae_r + aw_r + Re * drp * rp * depsp / dt;
@@ -530,7 +536,7 @@ void Calculation_Velocity_Veps()
 	double drp, drn, drs, dre, drw;
 	double depsp, depsn, depss, depse, depsw;
 
-	double visc_s, visc_n, visc_w, visc_e;
+	double visc_s, visc_n, visc_w, visc_e, visc_p;
 
 	double Vp, Vn, Vs, Ve, Vw;
 	double Up, Ue, Uw;
@@ -569,6 +575,7 @@ void Calculation_Velocity_Veps()
 					visc_n = 0.5 * (0.5 * (visc[i][j] + visc[i][j + 1]) + 0.5 * (visc[i + 1][j] + visc[i + 1][j + 1]));
 					visc_e = visc[i][j+1];
 					visc_w = visc[i][j];
+					visc_p = 0.5 * (visc_w + visc_e);
 
 					UN = U[i + 1][j];
 					US = U[i - 1][j];
@@ -604,7 +611,10 @@ void Calculation_Velocity_Veps()
 				double aw_eps = fmax(+R, 0.0) + visc_w*drw / (rw * depsw);
 
 				/* ************ */
-				double S = Re * Up * Vp * drp * depsp - Up * drp * depsp / rp + 2.0 * drp / rp * (Ve - Vw) + u[i][j] * Re * rp * drp * depsp / dt;
+				double S1 = (visc_n - visc_s) * (Ve - Vw) - Up * depsp * (visc_n - visc_s) + drp * (visc_e - visc_w) * (Ue / re - Uw / rw) / depsp + 2 * Vp * drp * (visc_e / re - visc_w / rw);
+
+				/* ************ */
+				double S = Re * Up * Vp * drp * depsp - visc_p * Up * drp * depsp / rp + 2.0 * visc_p * drp / rp * (Ve - Vw) + u[i][j] * Re * rp * drp * depsp / dt + S1;
 
 				/* ************ */
 				ap_eps[i][j] = an_eps + as_eps + ae_eps + aw_eps + Re * drp * rp * depsp / dt;
