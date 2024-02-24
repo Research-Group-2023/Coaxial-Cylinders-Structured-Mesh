@@ -37,7 +37,7 @@ void Arrays_Creation(int N, int M)
 
 	psi = new double* [N + 2]; for (int i = 0; i <= N + 1; i++) psi[i] = new double[M + 2];
 
-	visc = new double* [N + 2]; for (int i = 0; i <= N + 1; i++) v[i] = new double[M + 2];
+	visc = new double* [N + 2]; for (int i = 0; i <= N + 1; i++) visc[i] = new double[M + 2];
 
 	sign = new int* [N + 2]; for (int i = 0; i <= N + 1; i++) sign[i] = new int[M + 2];
 
@@ -303,7 +303,7 @@ void Initial_Conditions()
 				U[i][j] = ((omega_1 * R1 * R1 - omega_0 * R0 * R0) * r_cell[i] + R0 * R0 * R1 * R1 * (omega_0 - omega_1) / r_cell[i]) / (R1 * R1 - R0 * R0);
 
 				P[i][j] = Re / pow((R1 * R1 - R0 * R0), 2) * (pow((omega_1 * R1 * R1 - omega_0 * R0 * R0), 2) * (r_cell[i] * r_cell[i] - R0 * R0) * 0.5 + 2 * R0 * R0 * R1 * R1 * (omega_0 - omega_1) * (omega_1 * R1 * R1 - omega_0 * R0 * R0) * log(r_cell[i] / R0) - 0.5 * (omega_0 - omega_1) * (omega_0 - omega_1) * pow(R0 * R1, 4) * (1.0 / (r_cell[i] * r_cell[i]) - 1.0 / (R0 * R0)));
-				visc[i][j] = 1;
+				visc[i][j] = 1.0;
 			}
 
 		}
@@ -321,7 +321,7 @@ void Initial_Conditions()
 				U[i][j] = 0.0;
 
 				P[i][j] = 0.0;
-				visc[i][j] = 1;
+				visc[i][j] = 1.0;
 			}
 
 		}
@@ -366,6 +366,9 @@ void Boundary_conditions()
 		ap_r[i][0] = ap_r[i][M];
 		ap_r[i][M + 1] = ap_r[i][1];
 
+		visc[i][0] = visc[i][M];
+		visc[i][M + 1] = visc[i][1];
+
 	}
 
 	for (int j = 0; j <= M + 1; j++)
@@ -393,6 +396,12 @@ void Boundary_conditions()
 					U[i + 1][j] = omega_1 * R1 - dr[i + 1] / dr[i] * (U[i][j] - omega_1 * R1);
 					P[i + 1][j] = P[i][j];
 
+					double Un = R1 * omega_1;
+					double Us = 0.5 * (U[i - 1][j] + U[i - 1][j - 1]);
+					double drwall = 0.5 * (dr[i] + dr[i + 1]);
+
+					visc[i + 1][j] = pow(abs(pow(r_cell[i - 1] * (Un - Us) / drwall, 2)), n - 1) - visc[i][j];
+
 				}
 
 				if (sign[i - 1][j] == Inner_Wall && sign[i - 1][j + 1] == Inner_Wall)
@@ -400,6 +409,12 @@ void Boundary_conditions()
 
 					U[i - 1][j] = omega_0 * R0 - dr[i - 1] / dr[i] * (U[i][j] - omega_0 * R0);
 					P[i - 1][j] = P[i][j];
+
+					double Un = 0.5 * (U[i + 1][j] + U[i + 1][j - 1]);
+					double Us = R0 * omega_0;
+					double drwall = 0.5 * (dr[i] + dr[i - 1]);
+
+					visc[i - 1][j] = pow(abs(pow(r_cell[i - 1] * (Un - Us) / drwall, 2)), n - 1) - visc[i][j];
 
 				}
 
@@ -409,13 +424,23 @@ void Boundary_conditions()
 					V[i][j + 1] = -deps[j + 1] / deps[j] * V[i][j];
 					P[i][j + 1] = P[i][j];
 
+					double Vw = 0.5 * (V[i][j - 1] + V[i - 1][j - 1]);
+					double Uw = U[i][j - 1];
+
+					visc[i][j + 1] = pow(abs(pow(Vw / deps[j], 2) / (dr[i] * dr[i]) + 2 * pow(Uw / deps[j], 2)), n - 1) - visc[i][j];
+
 				}
 
-				if (sign[i + 1][j - 1] == Inner_Wall && sign[i][j - 1] == Inner_Wall)
+				if (sign[i][j - 1] == Inner_Wall && sign[i+1][j - 1] == Inner_Wall)
 				{
 
 					V[i][j - 1] = -deps[j - 1] / deps[j] * V[i][j];
 					P[i][j - 1] = P[i][j];
+
+					double Ve = 0.5 * (V[i][j + 1] + V[i - 1][j + 1]);
+					double Ue = U[i][j];
+
+					visc[i][j - 1] = pow(abs(pow(Ve / deps[j], 2) / (dr[i] * dr[i]) + 2 * pow(Ue / deps[j], 2)), n - 1) - visc[i][j];
 
 				}
 
@@ -434,62 +459,50 @@ void Calculation_Velocity_Vr()
 	{
 		for (int j = 1; j <= M; j++)
 		{
-			double rp, rn, rs, re, rw;
-			double drp, drn, drs, dre, drw;
-			double depsp, depsn, depss, depse, depsw;
-
-			double visc_s, visc_n, visc_w, visc_e, visc_p;
-
-			double Vp, Vn, Vs;
-			double Up, Ue, Uw, Un, Us;
-
-			double VN, VS, VE, VW;
-
+			
 			if (sign[i][j] == Computational_Cell && sign[i + 1][j] == Computational_Cell)
 			{
 
 				/* Присвоение значений узлам КО */
-				{
+				double rp = r_cell[i] + 0.5 * dr[i];
+				double rn = r_cell[i + 1];
+				double rs = r_cell[i];
+				double re = r_cell[i] + 0.5 * dr[i];
+				double rw = r_cell[i] + 0.5 * dr[i];
 
-					rp = r_cell[i] + 0.5 * dr[i];
-					rn = r_cell[i + 1];
-					rs = r_cell[i];
-					re = r_cell[i] + 0.5 * dr[i];
-					rw = r_cell[i] + 0.5 * dr[i];
+				double visc_s = visc[i][j];
+				double visc_n = visc[i + 1][j];
+				double visc_e = 0.5 * (0.5 * (visc[i][j] + visc[i + 1][j]) + 0.5 * (visc[i][j + 1] + visc[i + 1][j + 1]));
+				double visc_w = 0.5 * (0.5 * (visc[i][j] + visc[i + 1][j]) + 0.5 * (visc[i][j - 1] + visc[i + 1][j - 1]));
+				double visc_p = 0.5 * (visc_s + visc_n);
 
-					visc_s = visc[i][j];
-					visc_n = visc[i + 1][j];
-					visc_e = 0.5 * (0.5 * (visc[i][j] + visc[i + 1][j]) + 0.5 * (visc[i][j + 1] + visc[i + 1][j + 1]));
-					visc_w = 0.5 * (0.5 * (visc[i][j] + visc[i + 1][j]) + 0.5 * (visc[i][j - 1] + visc[i + 1][j - 1]));
-					visc_p = 0.5 * (visc_s + visc_n);
+				double drp = 0.5 * (dr[i] + dr[i + 1]);
+				double drn = dr[i + 1];
+				double drs = dr[i];
+				double dre = drp;
+				double drw = drp;
 
-					drp = 0.5 * (dr[i] + dr[i + 1]);
-					drn = dr[i + 1];
-					drs = dr[i];
-					dre = drp;
-					drw = drp;
+				double depsp = deps[j];
+				double depsn = deps[j];
+				double depss = deps[j];
+				double depse = 0.5 * (deps[j] + deps[j + 1]);
+				double depsw = 0.5 * (deps[j] + deps[j - 1]);
 
-					depsp = deps[j];
-					depsn = deps[j];
-					depss = deps[j];
-					depse = 0.5 * (deps[j] + deps[j + 1]);
-					depsw = 0.5 * (deps[j] + deps[j - 1]);
+				double VN = V[i + 1][j];
+				double VS = V[i - 1][j];
+				double VE = V[i][j + 1];
+				double VW = V[i][j - 1];
 
-					VN = V[i + 1][j];
-					VS = V[i - 1][j];
-					VE = V[i][j + 1];
-					VW = V[i][j - 1];
+				double Vp = V[i][j];
+				double Vn = 0.5 * (V[i][j] + V[i + 1][j]);
+				double Vs = 0.5 * (V[i][j] + V[i - 1][j]);
 
-					Vp = V[i][j];
-					Vn = 0.5 * (V[i][j] + V[i + 1][j]);
-					Vs = 0.5 * (V[i][j] + V[i - 1][j]);
-
-					Ue = U[i][j] + 0.5 * dr[i] * (U[i + 1][j] - U[i][j]) / dre;
-					Uw = U[i][j - 1] + 0.5 * dr[i] * (U[i + 1][j - 1] - U[i][j - 1]) / drw;
-					Un = 0.5 * (U[i + 1][j] + U[i + 1][j - 1]);
-					Us = 0.5 * (U[i][j] + U[i][j - 1]);
-					Up = 0.5 * (Ue + Uw);
-				}
+				double Ue = U[i][j] + 0.5 * dr[i] * (U[i + 1][j] - U[i][j]) / dre;
+				double Uw = U[i][j - 1] + 0.5 * dr[i] * (U[i + 1][j - 1] - U[i][j - 1]) / drw;
+				double Un = 0.5 * (U[i + 1][j] + U[i + 1][j - 1]);
+				double Us = 0.5 * (U[i][j] + U[i][j - 1]);
+				double Up = 0.5 * (Ue + Uw);
+				
 
 				/* ************* */
 				double R = Re * rn * depsn * Vn;
@@ -787,6 +800,36 @@ void Calculation_Pressure_P()
 
 }
 
+void Calculation_visc() {
+
+	for (int i = 1; i <= N; i++)
+	{
+		for (int j = 0; j <= M+1; j++)
+		{
+			if (sign[i][j] == Computational_Cell) {
+
+				double Vn = V[i][j];
+				double Vs = V[i - 1][j];
+				double Ve = 0.5 * (V[i][j + 1] + V[i - 1][j + 1]);
+				double Vw = 0.5 * (V[i][j - 1] + V[i - 1][j - 1]);
+
+				double Un = 0.5 * (U[i + 1][j] + U[i + 1][j - 1]);
+				double Us = 0.5 * (U[i - 1][j] + U[i - 1][j - 1]);
+				double Ue = U[i][j];
+				double Uw = U[i][j - 1];
+
+				double a = 0.5 * pow((2 * Vn - Vs) / dr[i], 2);
+				double b = 2 * pow(r_cell[i], 2) * pow(((0.5 * (Ve - Vw) / (pow(r_cell[i], 2) * deps[j])) + 0.5 * (Un - Us) / dr[i]), 2);
+				double c = pow((2 * (Ue - Uw) / deps[j] + 0.5 * (Vn + Vs) / r_cell[i]), 2);
+				double Q = 0.5 * (a + b + c);
+
+				visc[i][j] = pow(abs(Q), n - 1);
+
+			}
+		}
+	}
+}
+
 void Write()
 {
 
@@ -803,16 +846,18 @@ void Write()
 	ofstream file_E_vel("E_vel.DAT", ios_base::app);
 	file_E_vel << fixed << setprecision(6) << _time << "\t" << E_vel << endl;
 
-	if (iterGlob == 1 || iterGlob % 100 == 0 || abs(_time - _time_final) < dt)
+	if (iterGlob == 1 || iterGlob % 1000 == 0 || abs(_time - _time_final) < dt)
 	{
 		/* Файлы для записи */
 		ofstream file_1("U.DAT", ios_base::trunc);
 		ofstream file_2("V.DAT", ios_base::trunc);
 		ofstream file_3("P.DAT", ios_base::trunc);
+		ofstream file_4("Visc.DAT", ios_base::trunc);
 
 		file_1 << fixed << setprecision(6) << "time = " << _time << "\t" << "Re = " << Re << "\t" << N << "\t" << M << endl;
 		file_2 << fixed << setprecision(6) << "time = " << _time << "\t" << "Re = " << Re << "\t" << N << "\t" << M << endl;
 		file_3 << fixed << setprecision(6) << "time = " << _time << "\t" << "Re = " << Re << "\t" << N << "\t" << M << endl;
+		file_4 << fixed << setprecision(6) << "time = " << _time << "\t" << "Re = " << Re << "\t" << N << "\t" << M << endl;
 
 		for (int i = 0; i <= N; i++)
 		{
@@ -820,31 +865,35 @@ void Write()
 			file_1 << fixed << setprecision(2) << r_cell[i] << fixed << setprecision(6) << "\t" << U[i][j_1] << endl;
 			file_2 << fixed << setprecision(2) << r_cell[i] + 0.5 * dr[i] << fixed << setprecision(6) << "\t" << V[i][j_1] << endl;
 			file_3 << fixed << setprecision(2) << r_cell[i] << fixed << setprecision(6) << "\t" << P[i][j_1] << endl;
-
+			file_4 << fixed << setprecision(2) << r_cell[i] << fixed << setprecision(6) << "\t" << visc[i][j_1] << endl;
 		}
 
 		file_1.close();
 		file_2.close();
 		file_3.close();
+		file_4.close();
 		file_E_vel.close();
 
 	}
 
 	cout << fixed << setprecision(4) << "time = " << _time << "\t" << " Re = " << Re << endl;
-	cout << fixed << setprecision(7) << "Mesh:  " << N << "*" << M << "\t E_vel = " << E_vel << endl;
+	//cout << fixed << setprecision(7) << "Mesh:  " << N << "*" << M << "\t E_vel = " << E_vel << endl;
 	if (iterGlob == 1) cin.get();
-	cout << " r " << "\t" << "    U  " << "\t" << "\t" << "    V  " << "\t" << "\t" << "    P  " << endl;
-
-	for (int i = 1; i <= N; i++)
+	
+	
+	if (iterGlob == 1 || iterGlob % 1000 == 0)
 	{
+		cout << " r " << "\t" << "    U  " << "\t" << "\t" << "    V  " << "\t" << "\t" << "    P  " << "\t" << "\t" << "    Visc  " << endl;
+		for (int i = 1; i <= N; i++)
+		{
 
-		cout << fixed << setprecision(2) << r_cell[i] << "\t";
-		cout << fixed << setprecision(6) << U[i][j_1] << "\t" << V[i][j_1] << "\t" << P[i][j_1] << "\t" << endl;
+			cout << fixed << setprecision(2) << r_cell[i] << "\t";
+			cout << fixed << setprecision(6) << U[i][j_1] << "\t" << V[i][j_1] << "\t" << P[i][j_1] << "\t" << visc[i][j_1] << "\t" << endl;
 
+		}
+
+		cout << endl;
 	}
-
-	cout << endl;
-
 }
 
 void WriteEnd()
@@ -1584,13 +1633,14 @@ int main()
 			Calculation_Velocity_Vr();
 			Calculation_Velocity_Veps();
 			Calculation_Pressure_P();
+			Calculation_visc();
 
 		} while (maxPP >= 0.0001);
 
 		Development();
 		Redistricting();
 		Write();
-		Write_Save();
+		//Write_Save();
 		//Flow_Evolution();
 
 		_time += dt;

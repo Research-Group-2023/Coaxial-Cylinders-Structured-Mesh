@@ -10,6 +10,7 @@ double alfa = R0 / R1;
 double omega_0 = 0.0;
 double omega_1 = 1.0;
 
+double n = 1.3;
 double Re = 1.0;
 double Pi = 3.14159;
 
@@ -85,7 +86,7 @@ bool CVel;
 double E_vel;
 
 /* Наличие препятствия */
-bool Obstacle = true;
+bool Obstacle = false;
 double r_1 = 0.0;
 double r_2 = 0.0;
 double eps_1 = 0.23; //0.73
